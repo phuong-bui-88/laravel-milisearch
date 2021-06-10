@@ -1,0 +1,61 @@
+version: '3.2'
+services:
+  web:
+    image: nginx:1.15
+    ports:
+      - "$LOCAL_NGINX_PORT:80"
+    volumes:
+      # map local to remote folder, exclude node_modules exclude .data
+      - ./:/app
+      - /app/provision/data
+      - ./provision/build/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    links:
+      - fpm
+
+  fpm:
+    build: ./provision/build/php
+    volumes:
+      - ./:/app
+      - /app/provision/data
+      - ./provision/build/php/00-docker-php-ext.ini:/usr/local/etc/php/conf.d/00-docker-php-ext.ini
+      - ./provision/build/php/docker-php-ext-xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    links:
+      - db
+      - mongodb
+      - mailhog
+
+  db:
+    image: mysql:5.7
+    command: --default-authentication-plugin=mysql_native_password --max_allowed_packet=1073741824
+    restart: always
+    ports:
+      - "$LOCAL_MYSQL_PORT:3306"
+    volumes:
+      - ./provision/build/mysql/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
+      - ./provision/data/mysql-dump:/docker-entrypoint-initdb.d
+      - ./provision/data/mysql:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
+      MYSQL_DATABASE: $MYSQL_DATABASE
+      MYSQL_USER: $MYSQL_USER
+      MYSQL_PASSWORD: $MYSQL_PASSWORD
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - $LOCAL_ADMINER_PORT:8080
+    links:
+      - db
+
+  mongodb:
+    image: mongo:4.2
+    restart: always
+    ports:
+      - "$LOCAL_MONGODB_PORT:27017"
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.0
+    ports:
+      - "$LOCAL_SMTP_PORT:1025"
+      - "$LOCAL_SMTP_WEB_PORT:8025"
